@@ -2,60 +2,82 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BNO055.h>
 
-void onInterrupt();
+#include "pins.h"
+#include "motor.h"
 
-Adafruit_BNO055 bno = Adafruit_BNO055(55);
+void onMotorFault();
+void onIMUError();
 
-#define PIN 9
+Motor aMotor = Motor(A_MOTOR_1, A_MOTOR_2, A_ENCODER_1, A_ENCODER_2);
+Motor bMotor = Motor(B_MOTOR_1, B_MOTOR_2, B_ENCODER_1, B_ENCODER_2);
 
-#define BIN1 10
-#define BIN2 12
-
-#define ENC1A 7
-#define ENC1B 6
+Adafruit_BNO055 orientationSensor = Adafruit_BNO055(55);
 
 void setup()
 {
-  pinMode(PIN, OUTPUT);
-  pinMode(BIN1, OUTPUT);
-  pinMode(BIN2, OUTPUT);
-  pinMode(ENC1A, INPUT);
-  pinMode(ENC1B, INPUT);
+  pinMode(DEBUG_LED, OUTPUT);
 
-  attachInterrupt(digitalPinToInterrupt(ENC1A), onInterrupt, RISING);
+  pinMode(DRV_FAULT, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(DRV_FAULT), onMotorFault, FALLING);
 
-  if (!bno.begin())
-  {
-    while (1)
-    {
-      digitalWrite(PIN, HIGH);
-      delay(500);
-      digitalWrite(PIN, LOW);
-      delay(1000);
-    }
-  }
+  if (!orientationSensor.begin())
+    onIMUError();
 
-  bno.setExtCrystalUse(true);
-}
-
-void onInterrupt()
-{
-  digitalWrite(PIN, HIGH);
-  delayMicroseconds(50);
-  digitalWrite(PIN, LOW);
+  orientationSensor.setExtCrystalUse(true);
 }
 
 void loop()
 {
   sensors_event_t event;
-  bno.getEvent(&event);
+  orientationSensor.getEvent(&event);
 
-  digitalWrite(BIN1, HIGH);
-  analogWrite(BIN2, 255 - constrain((int)event.orientation.y * 5, 0, 255));
+  digitalWrite(B_MOTOR_1, HIGH);
+  analogWrite(B_MOTOR_2, 255 - constrain((int)event.orientation.y * 5, 0, 255));
+}
 
-  // digitalWrite(PIN, HIGH);
-  // delay(min(10 * abs((int)event.orientation.y), 500));
+/**
+ * The BNO055 failed to ACK at its I2C address.
+ *
+ * 3 short blinks separated by a pause.
+ */
+void onIMUError()
+{
+  while (1)
+  {
+    digitalWrite(DEBUG_LED, HIGH);
+    delay(50);
+    digitalWrite(DEBUG_LED, LOW);
+    delay(50);
+    digitalWrite(DEBUG_LED, HIGH);
+    delay(50);
+    digitalWrite(DEBUG_LED, LOW);
+    delay(50);
+    digitalWrite(DEBUG_LED, HIGH);
+    delay(50);
+    digitalWrite(DEBUG_LED, LOW);
+    delay(1000);
+  }
+}
 
-  // digitalWrite(PIN, LOW);
-  // delay(min(10 * abs((int)event.orientation.y), 500));
+/**
+ * The DRV8833 has encountered an overcurrent, overtemperature, or some other
+ * issue.
+ *
+ * 2 short blinks separated by a pause.
+ */
+void onMotorFault()
+{
+  aMotor.stop();
+  bMotor.stop();
+  while (1)
+  {
+    digitalWrite(DEBUG_LED, HIGH);
+    delay(50);
+    digitalWrite(DEBUG_LED, LOW);
+    delay(50);
+    digitalWrite(DEBUG_LED, HIGH);
+    delay(50);
+    digitalWrite(DEBUG_LED, LOW);
+    delay(1000);
+  }
 }
