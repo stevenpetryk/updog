@@ -28,11 +28,6 @@ void setup()
 
 void loop()
 {
-  sensors_event_t event;
-  orientationSensor.getEvent(&event);
-
-  digitalWrite(B_MOTOR_1, HIGH);
-  analogWrite(B_MOTOR_2, 255 - constrain((int)event.orientation.y * 5, 0, 255));
 }
 
 /**
